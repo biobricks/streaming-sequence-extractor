@@ -1,5 +1,5 @@
 
-Stream processor that takes GenBank, FASTA or plain-text formats as input and streams out just the sequence data (DNA, RNA or Amino Acids) with all formatting and meta-data removed.
+Stream processor that takes GenBank, FASTA or plaintext formats as input and streams out just the sequence data (DNA, RNA or Amino Acids) with all formatting and meta-data removed.
 
 This is not a strict parser. It will successfully parse things that only have a vague resemblance to their correct formats. This parser is meant to be fast and asynchronous. If you need format validation look elsewhere.
 
@@ -93,6 +93,12 @@ Subsequent lines starting with `LOCUS` are taken to mean that multiple sequences
 If `auto` is specified as the type (the default) then for GenBank format it will output the DNA or RNA sequence if such a sequence is present, but will not transform the character T to U since GenBank format has no simple way of specifying if a sequence is wholly DNA or RNA, and if no DNA or RNA sequence is present then it will output nothing at all.
 
 The parser currently is not able to auto-detect if a GenBank formatted stream contains Amino Acid sequences vs. DNA/RNA sequences. This is because Amino Acid sequence appear before the field that specifies if the DNA/RNA sequence is present and because often both types of sequences are present. It would be necessary to buffer all AA sequences (specified in `translation=""` feature qualifiers) until later in the stream when it becomes known if a DNA/RNA sequence is present. For very large genbank streams (files) this would defeat the purpose of using a stream processor and even if implemented it would be necessary to make a decision about whether to output AA or DNA/RNA sequence when both are present.
+
+## plaintext
+
+If the first non-empty (white-space only) line encountered consists only of allowed input characters then the parser will assume that the input is in plaintext format.
+
+One or more empty lines after a sequence with lines consisting only of allowed character following the empty line is taken to mean that the stream contains multiple sequences. That is: One or more empty lines is interpreted as a sequence delimiter.
 
 # ToDo
 
