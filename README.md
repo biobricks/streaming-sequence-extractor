@@ -1,3 +1,4 @@
+WARNING: This code is not yet fully working. 
 
 Stream processor that takes GenBank, FASTA or plaintext formats as input and streams out just the sequence data (DNA, RNA or Amino Acids) with all formatting and meta-data removed.
 
@@ -6,9 +7,10 @@ This is not a strict parser. It will successfully parse things that only have a 
 # Usage
 
 ```
-var tse = require('streaming-sequence-extractor');
+var see = require('streaming-sequence-extractor');
+var fs = require('fs');
 
-var seqStream = tse();
+var seqStream = see();
 
 fs.createReadStream('myseq.gb').pipe(seqStream);
 
@@ -23,27 +25,39 @@ seqStream.on('end', function(data) {
 
 # API
 
-## tse([type], [options])
+## see([type], [options])
 
 type can be:
 
 * 'DNA': Expect only DNA sequences
 * 'RNA': Expect only RNA sequences
-* 'NA': Expect DNA or RNA sequences
+* 'NA': Expect DNA and RNA sequences
 * 'AA': Expect only Amino Acid sequences
-* 'auto': (default) Expect DNA, RNA or AA sequences (but see the 'No auto type...' section)
+* 'auto': (default) Expect DNA, RNA and AA sequences (but see the 'No auto type...' section)
 
 options (with defaults specified);
 
 ```
 {
-  strict: true, // if true, strip non-sequence characters from output
+  stripUnexpected: false, // strip unexpected characters
+  errorOnUnexpected: true, // emit error if any unexpected chars encountered
   multi: false, // false, 'concat' or 'error', see description below
   separator: '' // the separator to use when multi is set to 'concat' 
+  inputEncoding: 'utf8', // decode input using this encoding
+  outputEncoding: inputEncoding, // encode output using this encoding
+   maxBuffer: 50000 // fail if no valid parser identified after 50 kilo-chars
 }
 ```
 
-If type is set to 'RNA' then all encountered `U` characters will be converted to `T` and vice-versa if type is set to 'DNA'.
+If type is set to 'AA' and GenBank format is encountered then this will cause the parser to only look at the Amino Acid version of the sequence (GenBank allows specifying both translated and untranslated versions of the same sequence). 
+
+If type is set to 'RNA' then all encountered 'U' characters will be converted to 'T' and vice-versa if type is set to 'DNA'. 
+
+If `stripUnexpected` is true then any characters in the sequence that were not expected based on the type are stripped from the output, otherwise all sequence characters are kept.
+
+If `errorOnUnexpected` the first unexpected character encountered in the sequence will result in an emitted error. 
+
+Do keep in mind that expected characters for Amino Acid sequences include all expected characters for DNA and RNA sequences so you will receive no errors if you set `type` to 'AA' and then receive DNA or RNA sequences.
 
 If `options.multi` is false then the stream will simply end at the end of the first sequence. If it is set to 'concat' then all sequences in a file will be streamed in order with the optional `options.separator` between each sequence. If `options.multi` is 'error' then an error will be emitted if more than one sequences are encountered in a file before the stream ends.
 
@@ -102,7 +116,11 @@ One or more empty lines after a sequence with lines consisting only of allowed c
 
 # ToDo
 
+* Implement opts.multi and opts.separator
+* Deal with maxBuffer
+* Implement GenBank AA support
 * Add SBOL support
+* Add plaintext
 * Unit tests
 
 # License and copyright

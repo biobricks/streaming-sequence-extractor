@@ -1,0 +1,11 @@
+{
+  "name": "streaming-sequence-extractor",
+  "version": "0.0.0",
+  "dependencies": {
+    "through2": "^2.0.3",
+    "xtend": "^4.0.1"
+  },
+  "scripts": {},
+  "license": "AGPL-3.0",
+  "devDependencies": {}
+}
