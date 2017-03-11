@@ -7,10 +7,10 @@ This is not a strict parser. It will successfully parse things that only have a 
 # Usage
 
 ```
-var see = require('streaming-sequence-extractor');
+var sse = require('streaming-sequence-extractor');
 var fs = require('fs');
 
-var seqStream = see();
+var seqStream = sse();
 
 fs.createReadStream('myseq.gb').pipe(seqStream);
 
@@ -45,7 +45,9 @@ options (with defaults specified);
   separator: '' // the separator to use when multi is set to 'concat' 
   inputEncoding: 'utf8', // decode input using this encoding
   outputEncoding: inputEncoding, // encode output using this encoding
-   maxBuffer: 50000 // fail if no valid parser identified after 50 kilo-chars
+  maxBuffer: 50000, // never buffer more than this many bytes
+  sbolConcat: true, // treat multiple sequences in an SBOL document as one sequence
+  sbolCheckEncoding: false // ensure the SBOL encoding is as expected
 }
 ```
 
@@ -59,7 +61,13 @@ If `errorOnUnexpected` the first unexpected character encountered in the sequenc
 
 Do keep in mind that expected characters for Amino Acid sequences include all expected characters for DNA and RNA sequences so you will receive no errors if you set `type` to 'AA' and then receive DNA or RNA sequences.
 
-If `options.multi` is false then the stream will simply end at the end of the first sequence. If it is set to 'concat' then all sequences in a file will be streamed in order with the optional `options.separator` between each sequence. If `options.multi` is 'error' then an error will be emitted if more than one sequences are encountered in a file before the stream ends.
+If `multi` is false then the stream will simply end at the end of the first sequence. If it is set to 'concat' then all sequences in a file will be streamed in order with the optional `options.separator` between each sequence. If `options.multi` is 'error' then an error will be emitted if more than one sequences are encountered in a file before the stream ends.
+
+If `maxBuffer` is 0 then no limit on the buffer size is imposed.
+
+if `sbolConcat` is true then automatically concatenate all sequences encountered in a single SBOL document. If it is false then treat them as multiple sequences and act according to the `multi` option.
+
+If `sbolCheckEncoding` is true then the SBOL `encoding` tag will be checked to see if it matches the specified `type` and encodings other than DNA, RNA and Amino Acids will always be ignored. Unfortunately the encoding tag in the SBOL format is specified after the encoded data (see (this issue)[https://github.com/SynBioDex/SBOL-specification/issues/97]) so setting this option to true causes streaming-sequence-parser to buffer sequences in their entirety until the encoding can be identified. Setting this option to false risks accidentally outputting [SMILES](http://opensmiles.org/opensmiles.html) data (also allowed in SBOL) but only if that data consists entirely of characters allowed in DNA, RNA or Amino Acids.
 
 # Output format
 
@@ -90,6 +98,12 @@ This parser additionally allows lower case versions of the allowed characters.
 
 # Formats
 
+## SBOL
+
+To identify SBOL format the parser looks for the pattern '<rdf:RDF' (case insensitive) and then uses a streaming XML parser to find 'sbol:Elements' tags inside of 'sbol:Sequence' tags inside of the 'rdf:RDF' tag. It skips all sequence tags where the encoding does not contain the string 'www.chem.qmul.ac.uk/iubmb/misc/naseq.html' or 'www.chem.qmul.ac.uk/iupac/AminoAcid'. 
+
+It extracts all text nodes from within all 'sbol:Elements' tags.
+
 ## FASTA
 
 To idenfity FASTA format the parser looks for the first non-empty line that begins with either `>` or `;` and then assumes that the sequence begins at the first non-empty line after that which doesn't begin with a `;`.  
@@ -108,6 +122,7 @@ If `auto` is specified as the type (the default) then for GenBank format it will
 
 The parser currently is not able to auto-detect if a GenBank formatted stream contains Amino Acid sequences vs. DNA/RNA sequences. This is because Amino Acid sequence appear before the field that specifies if the DNA/RNA sequence is present and because often both types of sequences are present. It would be necessary to buffer all AA sequences (specified in `translation=""` feature qualifiers) until later in the stream when it becomes known if a DNA/RNA sequence is present. For very large genbank streams (files) this would defeat the purpose of using a stream processor and even if implemented it would be necessary to make a decision about whether to output AA or DNA/RNA sequence when both are present.
 
+
 ## plaintext
 
 If the first non-empty (white-space only) line encountered consists only of allowed input characters then the parser will assume that the input is in plaintext format.
@@ -116,11 +131,11 @@ One or more empty lines after a sequence with lines consisting only of allowed c
 
 # ToDo
 
+* Add SBOL support (look at npm module `sax`)
 * Implement opts.multi and opts.separator
 * Deal with maxBuffer
 * Implement GenBank AA support
-* Add SBOL support
-* Add plaintext
+* Add plaintext support
 * Unit tests
 
 # License and copyright

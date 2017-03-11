@@ -4,7 +4,7 @@ var through = require('through2');
 var xtend = require('xtend');
 
 
-function see(type, opts) {
+function sse(type, opts) {
   if(typeof type === 'object') {
     opts = type;
     type = undefined;
@@ -196,4 +196,4 @@ function see(type, opts) {
 }
 
 
-module.exports = see;
+module.exports = sse;
