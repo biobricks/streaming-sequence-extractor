@@ -63,7 +63,7 @@ function sse(type, opts) {
 
   var parsers = {
 
-    fasta: function(data, self) {
+    fasta: function(data, self, check) {
       var runAgain = false;
 
       if(!parser) {
@@ -82,6 +82,7 @@ function sse(type, opts) {
         }
 
         if(m = buffer.match(r)) {
+          if(check) return m.index;
           console.log("\n\n");
  //         console.log("--- consumed header:", buffer.substr(0, m.index + m[0].length), '!!!!!!!!!!!!!!!!!');
           buffer = buffer.slice(m.index + m[0].length);
@@ -97,7 +98,7 @@ function sse(type, opts) {
       if(m = buffer.match(fastaEnd)) {
         // found the end of fasta so just consume until the end
         str = buffer.substr(0, m.index).toUpperCase();
-        console.log("END AT:", buffer.substr(m.index, 20), '!!');
+//        console.log("END AT:", buffer.substr(m.index, 20), '!!');
 //        console.log("X CONSUMED:", str, '//');
         buffer = buffer.slice(m.index);
         parser = undefined;
@@ -133,10 +134,11 @@ function sse(type, opts) {
       return runAgain;
     },
 
-    genbank: function(data, self) {
+    genbank: function(data, self, check) {
 
       if(!parser) {
         if(m = buffer.match(genbankLocus)) {
+          if(check) return m.index;
           console.log("\n\n");
           parser = parsers.genbank;
 
@@ -194,33 +196,40 @@ function sse(type, opts) {
       return self.push(str);
     },
 
-    sbol: function(data, self) {
+    sbol: function(data, self, check) {
       // check for <rdf:RDF> for begin
       // then initialize 
 
       if(!parser) {
-        console.log("checking:", data);
+//        console.log("checking:", buffer.toString().substr(0, 10));
         m = buffer.match(sbolStart);
         if(!m) return false;
+        if(check) return m.index;
 
         parser = parsers.sbol;
         sbolBufferOffset = 0;
 //        console.log("------- FOUND RDF");
 
         sbolExtract = sbolExtractor(opts, function(err, consumed, seq) {
-          if(err) return cb(err);
+          if(err) {
+            cb(err);
+            return false
+          }
 
           if(consumed) {
-//            console.log("CONSUMED", buffer.substr(0, consumed - sbolBufferOffset));
+//            console.log("CONSUMED", buffer.substr(0, consumed - sbolBufferOffset), '---');
             buffer = buffer.substr(consumed - sbolBufferOffset);
+//            console.log("buffer:", buffer.substr(0, 10), '!!!');
             sbolBufferOffset = consumed;
           }
           // end of SBOL data
           if(seq === null) {
+//            console.log("END SBOL");
             parser = undefined;
+            return true;
           }
 
-          if(!seq) return;
+          if(!seq) return false;
           console.log("\n\n");          
           self.push(seq);
 
@@ -228,14 +237,14 @@ function sse(type, opts) {
         });
       }
 
-      sbolExtract.write(data);
+      sbolExtract.write(buffer);
       return false;
     }
   }
     
 
   
-  var key, parts, tryAgain;
+  var key, parts, tryAgain, nextIndex, nextKey;
   stream = through(function(data, enc, cb) {
     buffer += decoder.write(data);    
 
@@ -244,9 +253,22 @@ function sse(type, opts) {
 //        console.log("parsing using:", parser === parsers.sbol, parser === parsers.fasta, parser === parsers.genbank);
         tryAgain = parser(data, this);
       } else {
+        nextIndex = Infinity;
+//        console.log('|||',buffer.substr(0, 20));
         for(key in parsers) {
-          while(tryAgain = parsers[key](data, this)) {};
-          if(parser) break;
+//          console.log("Checking:", key);
+          i = parsers[key](data, this, true);
+          if((typeof i === 'number') && i < nextIndex) {
+//            console.log("GOT", key);
+            nextIndex = i;
+            nextKey = key;
+          }
+        }
+        if(nextIndex < Infinity) {
+//          console.log("FOUND", nextKey);
+          tryAgain = parsers[nextKey](data, this);
+        } else {
+          break;
         }
       }
 //      console.log('..........', tryAgain, !!parser, key)
