@@ -131,7 +131,10 @@ One or more empty lines after a sequence with lines consisting only of allowed c
 
 # ToDo
 
-* Add SBOL support (look at npm module `sax`)
+* SBOL parser doesn't sanitize/check DNA output
+* If file contains e.g. fasta then sbol then genbank and the parsers are tried in the order fasta->genbank->sbol then the parser might discover the genbank header first and discard all the sbol as junk. To handle this we should check for any of the possible headers and pick the one that appears the earliest.
+* Check if multiple genbank seqs in one file work
+* Implement that seqs also end if the beginning of another format is discovered
 * Implement opts.multi and opts.separator
 * Deal with maxBuffer
 * Implement GenBank AA support

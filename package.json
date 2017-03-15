@@ -2,7 +2,7 @@
   "name": "streaming-sequence-extractor",
   "version": "0.0.0",
   "dependencies": {
-    "sax": "^1.2.2",
+    "sax": "1.2.2",
     "through2": "^2.0.3",
     "xtend": "^4.0.1"
   },

@@ -2,6 +2,7 @@
 var Decoder = require('string_decoder').StringDecoder;
 var through = require('through2');
 var xtend = require('xtend');
+var sbolExtractor = require('./lib/sbol.js');
 
 
 function sse(type, opts) {
@@ -39,10 +40,12 @@ function sse(type, opts) {
   var decoder = new Decoder(opts.inputEncoding);
   var buffer = '';
   var parser;
-  var firstFastaHeader = /^[>;].*\n/m;
-  var fastaHeader = /^>.*\n/m;
+  var firstFastaHeader = /^\s*[>;].*\n/m;
+  var fastaHeader = /^\s*>.*\n/m;
   var fastaComment = /^;.*\n/mg;
   var fastaStrip = /\s+/g;
+  var fastaEnd = /\r?\n\r?\n|\r?\n>|^LOCUS|<\?xml|<rdf:RDF/m;
+  var fastaGotHeader;
   var foundFastaSeq = false;
   var genbankLocus = /^LOCUS/m;
   var genbankOrigin = /^ORIGIN/m;
@@ -53,41 +56,59 @@ function sse(type, opts) {
   var genbankFoundOrigin = false;
   var errorEmitted = false;
   var stream;
+  var sbolStart = /<rdf:RDF/i;
+  var sbolExtract;
+  var sbolBufferOffset;
   var m, i, str, r;
 
   var parsers = {
 
-    fasta: function(cb) {
-      // fasta doesn't need newlines between multiple seqs
+    fasta: function(data, self) {
+      var runAgain = false;
 
       if(!parser) {
+        fastaGotHeader = false;
+      }
+
+      if(!fastaGotHeader) {
+
+        // Only the very first fasta seq in a file 
+        // is allowed to have its header begin with ';'
+        // All subsequent headers must begin with '>'
         if(foundFastaSeq) {
           r = fastaHeader;
         } else {
-          // only the first fasta header in a file
-          // is allowed to start with either > or ;
-          // all subsequent headers must start with >
-          r = firstFastaHeader; 
+          r = firstFastaHeader;
         }
-        foundFastaSeq = true;
+
         if(m = buffer.match(r)) {
-          parser = parsers.fasta;
-          // throw away header part of buffer
-          buffer = buffer.slice(m.index + m); 
+          console.log("\n\n");
+ //         console.log("--- consumed header:", buffer.substr(0, m.index + m[0].length), '!!!!!!!!!!!!!!!!!');
+          buffer = buffer.slice(m.index + m[0].length);
+          fastaGotHeader = true;
+          foundFastaSeq = true;
+          if(!parser) parser = parsers.fasta;
         } else {
-          // we can't throw any buffer away because we don't know if we're the right parser yet
-          return;
+//          console.log("--- no header match on:", buffer);
+          return runAgain;
         }
       }
 
-      if(m = buffer.match(fastaHeader)) {
+      if(m = buffer.match(fastaEnd)) {
+        // found the end of fasta so just consume until the end
         str = buffer.substr(0, m.index).toUpperCase();
-        buffer = buffer.slice(m.index + m[0].length);
+        console.log("END AT:", buffer.substr(m.index, 20), '!!');
+//        console.log("X CONSUMED:", str, '//');
+        buffer = buffer.slice(m.index);
+        parser = undefined;
+        runAgain = true; // there could be more fasta sequences
       } else {
-        str = buffer.toUpperCase();
+        // no end in sight so consume the rest of the buffer
+        str = buffer;
         buffer = '';
+//        console.log(". CONSUMED:", str, '//');
       }
-
+       
       str = str.replace(fastaComment, ''); // strip comments
       str = str.replace(fastaStrip, ''); // strip whitespace (but not newlines)
 
@@ -102,22 +123,27 @@ function sse(type, opts) {
       }
       
       if(opts.stripUnexpected) {
-        return cb(null, str.replace(charRegex, ''));
+        self.push(str.replace(charRegex, ''));
+        console.log("--- return unexp");
+        return runAgain;
       }
       
-      return cb(null, str);
+      self.push(str);
+//      console.log("--- return", runAgain);
+      return runAgain;
     },
 
-    genbank: function(cb) {
+    genbank: function(data, self) {
 
       if(!parser) {
         if(m = buffer.match(genbankLocus)) {
+          console.log("\n\n");
           parser = parsers.genbank;
 
           // throw away buffer until and including LOCUS keyword
           buffer = buffer.slice(m.index + m[0].length); 
         } else {
-          return;
+          return false;
         }
       }
 
@@ -132,7 +158,7 @@ function sse(type, opts) {
         } else {
           i = buffer.lastIndexOf("\n")
           if(i >= 0) {
-            buffer = buffer.slice(i); // throw away buffer with not matches
+            buffer = buffer.slice(i); // throw away buffer with no matches
           }
           return;
         }
@@ -162,32 +188,70 @@ function sse(type, opts) {
       }
       
       if(opts.stripUnexpected) {
-        return cb(null, str.replace(charRegex, ''));
+        return self.push(str.replace(charRegex, ''))
       }
       
-      return cb(null, str);
+      return self.push(str);
     },
 
-    plaintext: function(cb) {
+    sbol: function(data, self) {
+      // check for <rdf:RDF> for begin
+      // then initialize 
 
-    }, 
+      if(!parser) {
+        console.log("checking:", data);
+        m = buffer.match(sbolStart);
+        if(!m) return false;
 
-    sbol: function(cb) {
+        parser = parsers.sbol;
+        sbolBufferOffset = 0;
+//        console.log("------- FOUND RDF");
 
+        sbolExtract = sbolExtractor(opts, function(err, consumed, seq) {
+          if(err) return cb(err);
+
+          if(consumed) {
+//            console.log("CONSUMED", buffer.substr(0, consumed - sbolBufferOffset));
+            buffer = buffer.substr(consumed - sbolBufferOffset);
+            sbolBufferOffset = consumed;
+          }
+          // end of SBOL data
+          if(seq === null) {
+            parser = undefined;
+          }
+
+          if(!seq) return;
+          console.log("\n\n");          
+          self.push(seq);
+
+
+        });
+      }
+
+      sbolExtract.write(data);
+      return false;
     }
-
   }
     
-  var key, parts;
-  stream = through(function(data, enc, cb) {
-    buffer += decoder.write(data);
-    
-    if(parser) return parser(cb);
 
-    for(key in parsers) {
-      parsers[key](cb);
-      if(parser) break
-    }    
+  
+  var key, parts, tryAgain;
+  stream = through(function(data, enc, cb) {
+    buffer += decoder.write(data);    
+
+    do {
+      if(parser) {
+//        console.log("parsing using:", parser === parsers.sbol, parser === parsers.fasta, parser === parsers.genbank);
+        tryAgain = parser(data, this);
+      } else {
+        for(key in parsers) {
+          while(tryAgain = parsers[key](data, this)) {};
+          if(parser) break;
+        }
+      }
+//      console.log('..........', tryAgain, !!parser, key)
+    } while(tryAgain);
+    cb()
   });
 
   stream.setEncoding(opts.outputEncoding);
