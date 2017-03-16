@@ -3,9 +3,11 @@
 var fs = require('fs');
 var see = require('../index.js');
 
-var seqStream = see();
+var seqStream = see('rna', {
+  convertToExpected: true
+});
 
-fs.createReadStream('../sample_data/test.gb').pipe(seqStream);
+fs.createReadStream('../sample_data/test.sbol').pipe(seqStream);
 
 seqStream.on('data', function(data) {
   console.log(data);

@@ -10,7 +10,8 @@ function sse(type, opts) {
     opts = type;
     type = undefined;
   }
-  opts = xtend({    
+  opts = xtend({
+    convertToExpected: false, // Ts to Us if type is RNA and vice-versa for DNA
     stripUnexpected: false, // strip unexpected characters
     errorOnUnexpected: true, // emit error when encountering unexpected characters
     multi: false, // false, 'concat' or 'error', see README.md
@@ -35,7 +36,13 @@ function sse(type, opts) {
 
 //  var mostWhitespace = ' \f\t\v\u00a0\u1680\u180e\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff'; // this is the same as \s but without matching \n and \r
 
-  var charRegex = charRegexes[type];
+  var charRegex;
+  if(opts.convertToExpected && (type === 'dna' || type === 'rna')) {
+    // if converting between DNA and RNA then accept all nucleotides
+    charRegex = charRegexes['na'];
+  } else {
+    charRegex = charRegexes[type];
+  }
 
   var decoder = new Decoder(opts.inputEncoding);
   var buffer = '';
@@ -60,6 +67,25 @@ function sse(type, opts) {
   var sbolExtract;
   var sbolBufferOffset;
   var m, i, str, r;
+
+  function sanitizeSequence(seq) {
+    if(opts.convertToExpected) {
+      if(type === 'dna') {
+        seq = seq.replace(uRegex, 'T');
+      } else if(type === 'rna') {
+        seq = seq.replace(tRegex, 'U');
+      }
+    }
+
+    if(opts.errorOnUnexpected && !errorEmitted && (m = seq.match(charRegex))) {
+      stream.emit('error', new Error("Found unexpected character(s): " + m[0]));
+    }
+    
+    if(opts.stripUnexpected) {
+      return seq.replace(charRegex, '')
+    }
+    return seq;
+  }
 
   var parsers = {
 
@@ -112,24 +138,8 @@ function sse(type, opts) {
        
       str = str.replace(fastaComment, ''); // strip comments
       str = str.replace(fastaStrip, ''); // strip whitespace (but not newlines)
-
-      if(opts.errorOnUnexpected && !errorEmitted && (m = str.match(charRegex))) {
-        stream.emit('error', new Error("Found unexpected character(s): " + m[0]));
-      }
-
-      if(type === 'dna') {
-        str = str.replace(uRegex, 'T');
-      } else if(type === 'rna') {
-        str = str.replace(tRegex, 'U');
-      }
       
-      if(opts.stripUnexpected) {
-        self.push(str.replace(charRegex, ''));
-        console.log("--- return unexp");
-        return runAgain;
-      }
-      
-      self.push(str);
+      self.push(sanitizeSequence(str));
 //      console.log("--- return", runAgain);
       return runAgain;
     },
@@ -182,22 +192,7 @@ function sse(type, opts) {
       // strip whitespace and nucletide counts
       str = str.replace(genbankStrip, '');
 
-      if(opts.errorOnUnexpected && !errorEmitted && (m = str.match(charRegex))) {
-        stream.emit('error', new Error("Found unexpected character(s): " + m[0]));
-      }
-
-      if(type === 'dna') {
-        str = str.replace(uRegex, 'T');
-      } else if(type === 'rna') {
-        str = str.replace(tRegex, 'U');
-      }
-      
-      if(opts.stripUnexpected) {
-        self.push(str.replace(charRegex, ''))
-        return runAgain;
-      }
-      
-      self.push(str);
+      self.push(sanitizeSequence(str));
       return runAgain;
     },
 
@@ -227,6 +222,7 @@ function sse(type, opts) {
 //            console.log("buffer:", buffer.substr(0, 10), '!!!');
             sbolBufferOffset = consumed;
           }
+
           // end of SBOL data
           if(seq === null) {
 //            console.log("END SBOL");
@@ -235,10 +231,11 @@ function sse(type, opts) {
           }
 
           if(!seq) return false;
-          console.log("\n\n");          
-          self.push(seq);
+          console.log("\n\n");
 
+          seq = seq.toUpperCase();
 
+          self.push(sanitizeSequence(seq));
         });
       }
 
