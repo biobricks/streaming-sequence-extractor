@@ -14,11 +14,12 @@ var seqStream = see('auto', {
 });
 
 // read sequence data from file and pipe into seqStream
-// but throttle to 20000 bytes per second
-fs.createReadStream('../sample_data/test.sbol').pipe(brake(20000)).pipe(seqStream);
+// but throttle to 500 bytes per second
+fs.createReadStream('../sample_data/test.multi').pipe(brake(20000)).pipe(seqStream);
 
 seqStream.on('data', function(data) {
   process.stdout.write(data);
+//  console.log(data);
 });
 
 seqStream.on('error', function(err) {

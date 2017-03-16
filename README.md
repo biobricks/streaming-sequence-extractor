@@ -1,14 +1,12 @@
-WARNING: This code is not yet fully working. 
+WARNING: This module is not production ready. Needs more testing.
 
 Stream processor that takes GenBank, FASTA or SBOL formats as input and streams out just the sequence data (DNA, RNA or Amino Acid sequences) with all formatting and meta-data removed. 
 
-Optionally you can specify a FASTA header to be appended to each sequence, which can be specified as a function..
+Optionally you can specify a FASTA header to be appended to each sequence.
 
-The input stream can contain a mix of the supported formats. E.g. you can stream a FASTA file followed by an SBOL file and then a GenBank file.
+This module was written to facilitate building of BLAST databases from large amounts of user-contributed sequence files, while using the appended FASTA header to reference the BLAST query results back to the original file.
 
-This module was written to facilitate building of BLAST databases from large amounts of user-contributed files, while using the FASTA header to reference back to the original database entry for the user-contributed file.
-
-This is not a strict parser. It will successfully parse things that only have a vague resemblance to their correct formats. This parser is meant to be fast, asynchronous and platform-independent. If you need strict format validation look elsewhere.
+This is not a strict parser. It will successfully parse things that only bear a vague resemblance to their correct formats. This parser is meant to be fast, asynchronous and platform-independent. If you need strict format validation look elsewhere.
 
 # Usage
 
@@ -70,7 +68,6 @@ If `header` is set then each sequence will be output with a FASTA header in the 
 
 The output will consist of all nucleotide or amino acid characters encountered in the sequences, as specified by in the 'Allowed sequence characters' section.
 
-
 # Allowed input sequence characters
 
 Allowed input characters for DNA are the IUPAC characters [as per the GenBank Submissions Handbook](https://www.ncbi.nlm.nih.gov/books/NBK53702/#gbankquickstart.if_i_don_t_know_the_base) plus the extra characters [allowed by BLAST](https://blast.ncbi.nlm.nih.gov/Blast.cgi?CMD=Web&PAGE_TYPE=BlastDocs&DOC_TYPE=BlastHelp):
@@ -117,23 +114,21 @@ Subsequent lines starting with `LOCUS` are taken to mean that multiple sequences
 
 If `auto` is specified as the type (the default) then for GenBank format it will output the DNA or RNA sequence if such a sequence is present, but will not transform the character T to U since GenBank format has no simple way of specifying if a sequence is wholly DNA or RNA, and if no DNA or RNA sequence is present then it will output nothing at all.
 
-The parser currently is not able to auto-detect if a GenBank formatted stream contains Amino Acid sequences vs. DNA/RNA sequences. This is because Amino Acid sequence appear before the field that specifies if the DNA/RNA sequence is present and because often both types of sequences are present. It would be necessary to buffer all AA sequences (specified in `translation=""` feature qualifiers) until later in the stream when it becomes known if a DNA/RNA sequence is present. For very large genbank streams (files) this would defeat the purpose of using a stream processor and even if implemented it would be necessary to make a decision about whether to output AA or DNA/RNA sequence when both are present.
+## Gotchas
 
+The parser currently is not able to auto-detect if an SBOL formatted stream contains Amino Acid sequences vs. DNA/RNA sequences.
 
-## plaintext
+The input stream is supposed to be able to contain a mix of the supported formats concatenated together. E.g. you should be able to stream a FASTA file followed by an SBOL file and then a GenBank file, as long as each FASTA or FASTQ file ends with a double-newline.
 
-If the first non-empty (white-space only) line encountered consists only of allowed input characters then the parser will assume that the input is in plaintext format.
-
-One or more empty lines after a sequence with lines consisting only of allowed character following the empty line is taken to mean that the stream contains multiple sequences. That is: One or more empty lines is interpreted as a sequence delimiter.
+However, currently the SBOL parser overconsumes in some cases (see examples/multi_fail.js) which can cause it to eat up the beginning of the next format. This is an issue with the sax npm module not stopping when it reaches the closing tag of the root node (which is fair if it was designed for parsing a single xml file per initialization).
 
 # ToDo
 
+* Support FASTQ format
+* Fix SBOL overconsumption.
 * Implement checking of SBOL encoding
-* Support FASTQ 
-* Implement opts.multi
-* Implement maxBuffer
+* Implement opts.maxBuffer (maximum buffer size)
 * Unit tests
-
 
 # License and copyright
 

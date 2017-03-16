@@ -47,15 +47,17 @@ function sse(type, opts) {
   var buffer = '';
   var parser;
   var firstFastaHeader = /^\s*[>;].*\n/m;
-  var fastaHeader = /^\s*>.*\n/m;
+  var fastaHeader = /^>.*\n/m;
   var fastaComment = /^;.*\n/mg;
+  var fastaCommentStart = /^\s*;.*/m;
   var fastaStrip = /\s+/g;
-  var fastaEnd = /\r?\n\r?\n|\r?\n>|^LOCUS|<\?xml|<rdf:RDF/m;
+  var fastaEnd = /\r?\n\r?\n|\n>/m;
   var fastaGotHeader;
+//  var whitespaceStrip = /[ \f\r\t\v\u00a0\u1680\u180e\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
   var foundFastaSeq = false;
   var genbankLocus = /^\s*LOCUS/m;
   var genbankOrigin = /^\s*ORIGIN/m;
-  var genbankOriginEnd = /\/\//m;
+  var genbankOriginEnd = /\//m; // we're mathcing / instead of // to simplify the parser
   var genbankTranslation = /^\s*\/translation=["']/m;
   var genbankTranslationEnd = /['"]/m;
   var genbankStrip = /[\s\d]+/g; // chars that are allowed in sequence (ORIGIN) section but should be stripped from output
@@ -101,12 +103,13 @@ function sse(type, opts) {
       } else {
         i = opts.header.toString();
       }
-      self.push("\n>"+o);
+      self.push("\n\n>"+o+"\n");
     } else {
-      self.push("\n");
+      self.push("\n\n");
     }
     seqCount++;
   }
+
 
   var parsers = {
 
@@ -131,13 +134,11 @@ function sse(type, opts) {
         if(m = buffer.match(r)) {
           if(check) return m.index;
           pushHeader(self);
- //         console.log("--- consumed header:", buffer.substr(0, m.index + m[0].length), '!!!!!!!!!!!!!!!!!');
           buffer = buffer.slice(m.index + m[0].length);
           fastaGotHeader = true;
           foundFastaSeq = true;
           if(!parser) parser = parsers.fasta;
         } else {
-//          console.log("--- no header match on:", buffer);
           return runAgain;
         }
       }
@@ -145,23 +146,28 @@ function sse(type, opts) {
       if(m = buffer.match(fastaEnd)) {
         // found the end of fasta so just consume until the end
         str = buffer.substr(0, m.index).toUpperCase();
-//        console.log("END AT:", buffer.substr(m.index, 20), '!!');
-//        console.log("X CONSUMED:", str, '//');
         buffer = buffer.slice(m.index);
         parser = undefined;
-        runAgain = true; // there could be more fasta sequences
       } else {
         // no end in sight so consume the rest of the buffer
         str = buffer;
-        buffer = '';
-//        console.log(". CONSUMED:", str, '//');
       }
-       
+
       str = str.replace(fastaComment, ''); // strip comments
-      str = str.replace(fastaStrip, ''); // strip whitespace (but not newlines)
+      str = str.replace(fastaStrip, ''); // strip whitespace
+
+      // if encountering the beginning of a comment
+      // after stripping comments
+      // that means we received a partial comment
+      // so wait for more to arrive
+      if(str.match(fastaCommentStart)) {
+        return;
+      }
+      if(parser) {
+        buffer = '';
+      }
       
       self.push(sanitizeSequence(str));
-//      console.log("--- return", runAgain);
       return runAgain;
     },
 
@@ -193,7 +199,6 @@ function sse(type, opts) {
         }
 
         m = buffer.match(genbankOrigin);
-//        console.log('----------', m, m2);
         if(!m && !m2) {
           return false;
         }
@@ -257,14 +262,12 @@ function sse(type, opts) {
       // then initialize 
 
       if(!parser) {
-//        console.log("checking:", buffer.toString().substr(0, 10));
         m = buffer.match(sbolStart);
         if(!m) return;
         if(check) return m.index;
 
         parser = parsers.sbol;
         sbolBufferOffset = 0;
-//        console.log("------- FOUND RDF");
 
         sbolExtract = sbolExtractor(opts, function(err, consumed, seq) {
           if(err) {
@@ -273,15 +276,12 @@ function sse(type, opts) {
           }
 
           if(consumed) {
-//            console.log("CONSUMED", buffer.substr(0, consumed - sbolBufferOffset), '---');
             buffer = buffer.substr(consumed - sbolBufferOffset);
-//            console.log("buffer:", buffer.substr(0, 10), '!!!');
             sbolBufferOffset = consumed;
           }
 
           // end of SBOL data
           if(seq === null) {
-//            console.log("END SBOL");
             parser = undefined;
             return;
           }
@@ -302,21 +302,33 @@ function sse(type, opts) {
     
 
   
-  var key, parts, nextIndex, nextKey, prevLen;
-  stream = through(function(data, enc, cb) {
-    buffer += decoder.write(data);    
+  var key, parts, nextIndex, nextKey, prevLen, nextNewline;
+  function parse(self, data, enc, cb, ending) {
+    if(data) {
+      buffer += decoder.write(data);
+    }
+
+    if(!ending) {
+      // we need two bytes, and one byte after the last newline if any
+      // in order to match FASTA and GenBank end patterns (double-newline or "\n>")
+      if(buffer.length < 2) {
+        return cb();
+      }
+      
+      nextNewline = buffer.indexOf("\n");
+      if(nextNewline >= 0 && (buffer.length - nextNewline - 1 < 1)) {
+        return cb();
+      }
+    }
 
     do {
       prevLen = buffer.length;
       if(parser) {
-//        console.log("parsing using:", parser === parsers.sbol, parser === parsers.fasta, parser === parsers.genbank);
-        parser(this);
+        parser(self, false, ending);
       } else {
         nextIndex = Infinity;
-//        console.log('|||',buffer.substr(0, 20));
         for(key in parsers) {
-//          console.log("Checking:", key);
-          i = parsers[key](this, true);
+          i = parsers[key](self, true, ending);
           if((typeof i === 'number') && i < nextIndex) {
             
             nextIndex = i;
@@ -324,18 +336,25 @@ function sse(type, opts) {
           }
         }
         if(nextIndex < Infinity) {
-//          console.log("FOUND", nextKey);
-          parsers[nextKey](this);
+          parsers[nextKey](self, false, ending);
         } else {
           break;
         }
       }
-//      console.log('..........', tryAgain, !!parser, key)
+
       // continue processing current buffer
       // as long as there is buffer to process
       // and as long as each iteration actually consumes part of the buffer
     } while(buffer.length && (prevLen !== buffer.length));
     cb()
+  }
+
+
+  stream = through(function(data, enc, cb) {
+    parse(this, data, enc, cb);
+  }, function(cb) {
+    // process the last few bytes (if any)
+    parse(this, null, null, cb, true);
   });
 
   stream.setEncoding(opts.outputEncoding);
