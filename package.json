@@ -6,6 +6,28 @@
     "through2": "^2.0.3",
     "xtend": "^4.0.1"
   },
+  "repository": {
+    "type": "git",
+    "url": "http://github.com/biobricks/streaming-sequence-extractor.git"
+  },
+  "keywords": [
+    "GenBank",
+    "FASTA",
+    "FASTQ",
+    "SBOL",
+    "DNA",
+    "RNA",
+    "AA",
+    "amino acid",
+    "sequence",
+    "stream",
+    "extract"
+  ],
+  "author": {
+    "name": "Marc Juul",
+    "email": "npm@juul.io",
+    "url": "https://github.com/juul"
+  },
   "scripts": {},
   "license": "AGPL-3.0",
   "devDependencies": {}

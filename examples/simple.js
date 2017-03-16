@@ -3,11 +3,14 @@
 var fs = require('fs');
 var see = require('../index.js');
 
-var seqStream = see('rna', {
-  convertToExpected: true
+var seqStream = see('auto', {
+  convertToExpected: true,
+  header: function(count) {
+    return "sample header " + count;
+  }
 });
 
-fs.createReadStream('../sample_data/test.sbol').pipe(seqStream);
+fs.createReadStream('../sample_data/test.multi').pipe(seqStream);
 
 seqStream.on('data', function(data) {
   console.log(data);

@@ -14,8 +14,7 @@ function sse(type, opts) {
     convertToExpected: false, // Ts to Us if type is RNA and vice-versa for DNA
     stripUnexpected: false, // strip unexpected characters
     errorOnUnexpected: true, // emit error when encountering unexpected characters
-    multi: false, // false, 'concat' or 'error', see README.md
-    separator: '', // the separator to use when multi is set to 'concat' 
+    header: '', // the FASTA header to prepend before each sequence. can be a function
     inputEncoding: 'utf8', // decode input using this encoding
     outputEncoding: undefined, // encode output using this encoding
     dnaChars: 'TGACRYMKSWHBVDN\\-',
@@ -54,19 +53,23 @@ function sse(type, opts) {
   var fastaEnd = /\r?\n\r?\n|\r?\n>|^LOCUS|<\?xml|<rdf:RDF/m;
   var fastaGotHeader;
   var foundFastaSeq = false;
-  var genbankLocus = /^LOCUS/m;
-  var genbankOrigin = /^ORIGIN/m;
+  var genbankLocus = /^\s*LOCUS/m;
+  var genbankOrigin = /^\s*ORIGIN/m;
+  var genbankOriginEnd = /\/\//m;
+  var genbankTranslation = /^\s*\/translation=["']/m;
+  var genbankTranslationEnd = /['"]/m;
   var genbankStrip = /[\s\d]+/g; // chars that are allowed in sequence (ORIGIN) section but should be stripped from output
-  var genbankEnd = '//';
   var uRegex = /U+/g;
   var tRegex = /T+/g;
-  var genbankFoundOrigin = false;
+  var genbankFoundTranslation = false; // genbank parser state
+  var genbankFoundOrigin = false; // genbank parser state
   var errorEmitted = false;
   var stream;
   var sbolStart = /<rdf:RDF/i;
   var sbolExtract;
   var sbolBufferOffset;
-  var m, i, str, r;
+  var m, m2, i, str, r;
+  var seqCount = 0;
 
   function sanitizeSequence(seq) {
     if(opts.convertToExpected) {
@@ -85,6 +88,24 @@ function sse(type, opts) {
       return seq.replace(charRegex, '')
     }
     return seq;
+  }
+  
+  function pushHeader(self) {
+    var o;
+    if(opts.header) {
+      if(typeof opts.header === 'function') {
+        o = opts.header(seqCount);
+      }
+      if(typeof o === 'object') {
+        o = JSON.stringify(o);
+      } else {
+        i = opts.header.toString();
+      }
+      self.push("\n>"+o);
+    } else {
+      self.push("\n");
+    }
+    seqCount++;
   }
 
   var parsers = {
@@ -109,7 +130,7 @@ function sse(type, opts) {
 
         if(m = buffer.match(r)) {
           if(check) return m.index;
-          console.log("\n\n");
+          pushHeader(self);
  //         console.log("--- consumed header:", buffer.substr(0, m.index + m[0].length), '!!!!!!!!!!!!!!!!!');
           buffer = buffer.slice(m.index + m[0].length);
           fastaGotHeader = true;
@@ -145,13 +166,15 @@ function sse(type, opts) {
     },
 
     genbank: function(self, check) {
-      var runAgain = false;
+
 
       if(!parser) {
+
         genbankFoundOrigin = false;
+        genbankFoundTranslation = false;
         if(m = buffer.match(genbankLocus)) {
           if(check) return m.index;
-          console.log("\n\n");
+
           parser = parsers.genbank;
 
           // throw away buffer until and including LOCUS keyword
@@ -161,29 +184,62 @@ function sse(type, opts) {
         }
       }
 
-      if(!genbankFoundOrigin) {
-        if(m = buffer.match(genbankOrigin)) {
-          // TODO implement AA matching for GenBank
-          if(type === 'aa') throw new Error("Amino Acid matching for GenBank format not implemented");
+      if(!genbankFoundOrigin && !genbankFoundTranslation) {
 
+        if(type === 'aa' || type === 'auto') {
+          m2 = buffer.match(genbankTranslation);
+        } else {
+          m2 = null;
+        }
+
+        m = buffer.match(genbankOrigin);
+//        console.log('----------', m, m2);
+        if(!m && !m2) {
+          return false;
+        }
+        // if an origin was found before the next translation
+        if((m && !m2) || (m && (m.index < m2.index))) {
           genbankFoundOrigin = true;
+
           // throw away buffer until and including ORIGIN keyword
           buffer = buffer.slice(m.index + m[0].length); 
+          if(type !== 'aa') {
+            pushHeader(self);
+          }
+        } else if(m2) { // a translation was found before the next origin
+          genbankFoundTranslation = true;
+
+          // throw away buffer until and including translation="
+          buffer = buffer.slice(m2.index + m2[0].length);
+          pushHeader(self);
         } else {
           i = buffer.lastIndexOf("\n")
           if(i >= 0) {
             buffer = buffer.slice(i); // throw away buffer with no matches
           }
-          return false;
+          return;
         }
       }
+      
+      if(genbankFoundTranslation) {
+        m = buffer.match(genbankTranslationEnd);
+      } else {
+        m = buffer.match(genbankOriginEnd);
+      }
+      if(m) {
+        str = buffer.substr(0, m.index).toUpperCase();
+        buffer = buffer.slice(m.index + m[0].length);
 
-      i = buffer.indexOf(genbankEnd);
-      if(i >= 0) {
-        str = buffer.substr(0, i).toUpperCase();
-        buffer = buffer.slice(i + genbankEnd.length);
-        parser = undefined; // reset parser discovery since we're at the end
-        runAgain = true;
+        if(genbankFoundOrigin) {
+          parser = undefined; // reset parser discovery since we're at the end
+
+          // found end of origin but we're not outputting it in AA mode
+          if(type === 'aa') {
+            return;
+          }
+        } else {
+          genbankFoundTranslation = false;
+        }
       } else {
         str = buffer.toUpperCase();
         buffer = '';
@@ -193,7 +249,7 @@ function sse(type, opts) {
       str = str.replace(genbankStrip, '');
 
       self.push(sanitizeSequence(str));
-      return runAgain;
+      return;
     },
 
     sbol: function(self, check) {
@@ -203,7 +259,7 @@ function sse(type, opts) {
       if(!parser) {
 //        console.log("checking:", buffer.toString().substr(0, 10));
         m = buffer.match(sbolStart);
-        if(!m) return false;
+        if(!m) return;
         if(check) return m.index;
 
         parser = parsers.sbol;
@@ -213,7 +269,7 @@ function sse(type, opts) {
         sbolExtract = sbolExtractor(opts, function(err, consumed, seq) {
           if(err) {
             cb(err);
-            return false
+            return;
           }
 
           if(consumed) {
@@ -227,11 +283,11 @@ function sse(type, opts) {
           if(seq === null) {
 //            console.log("END SBOL");
             parser = undefined;
-            return true;
+            return;
           }
 
-          if(!seq) return false;
-          console.log("\n\n");
+          if(!seq) return;
+          pushHeader(self);
 
           seq = seq.toUpperCase();
 
@@ -246,14 +302,15 @@ function sse(type, opts) {
     
 
   
-  var key, parts, tryAgain, nextIndex, nextKey;
+  var key, parts, nextIndex, nextKey, prevLen;
   stream = through(function(data, enc, cb) {
     buffer += decoder.write(data);    
 
     do {
+      prevLen = buffer.length;
       if(parser) {
 //        console.log("parsing using:", parser === parsers.sbol, parser === parsers.fasta, parser === parsers.genbank);
-        tryAgain = parser(this);
+        parser(this);
       } else {
         nextIndex = Infinity;
 //        console.log('|||',buffer.substr(0, 20));
@@ -261,20 +318,23 @@ function sse(type, opts) {
 //          console.log("Checking:", key);
           i = parsers[key](this, true);
           if((typeof i === 'number') && i < nextIndex) {
-//            console.log("GOT", key);
+            
             nextIndex = i;
             nextKey = key;
           }
         }
         if(nextIndex < Infinity) {
 //          console.log("FOUND", nextKey);
-          tryAgain = parsers[nextKey](this);
+          parsers[nextKey](this);
         } else {
           break;
         }
       }
 //      console.log('..........', tryAgain, !!parser, key)
-    } while(tryAgain);
+      // continue processing current buffer
+      // as long as there is buffer to process
+      // and as long as each iteration actually consumes part of the buffer
+    } while(buffer.length && (prevLen !== buffer.length));
     cb()
   });
 
