@@ -63,7 +63,7 @@ function sse(type, opts) {
 
   var parsers = {
 
-    fasta: function(data, self, check) {
+    fasta: function(self, check) {
       var runAgain = false;
 
       if(!parser) {
@@ -134,9 +134,11 @@ function sse(type, opts) {
       return runAgain;
     },
 
-    genbank: function(data, self, check) {
+    genbank: function(self, check) {
+      var runAgain = false;
 
       if(!parser) {
+        genbankFoundOrigin = false;
         if(m = buffer.match(genbankLocus)) {
           if(check) return m.index;
           console.log("\n\n");
@@ -162,7 +164,7 @@ function sse(type, opts) {
           if(i >= 0) {
             buffer = buffer.slice(i); // throw away buffer with no matches
           }
-          return;
+          return false;
         }
       }
 
@@ -171,6 +173,7 @@ function sse(type, opts) {
         str = buffer.substr(0, i).toUpperCase();
         buffer = buffer.slice(i + genbankEnd.length);
         parser = undefined; // reset parser discovery since we're at the end
+        runAgain = true;
       } else {
         str = buffer.toUpperCase();
         buffer = '';
@@ -190,13 +193,15 @@ function sse(type, opts) {
       }
       
       if(opts.stripUnexpected) {
-        return self.push(str.replace(charRegex, ''))
+        self.push(str.replace(charRegex, ''))
+        return runAgain;
       }
       
-      return self.push(str);
+      self.push(str);
+      return runAgain;
     },
 
-    sbol: function(data, self, check) {
+    sbol: function(self, check) {
       // check for <rdf:RDF> for begin
       // then initialize 
 
@@ -251,13 +256,13 @@ function sse(type, opts) {
     do {
       if(parser) {
 //        console.log("parsing using:", parser === parsers.sbol, parser === parsers.fasta, parser === parsers.genbank);
-        tryAgain = parser(data, this);
+        tryAgain = parser(this);
       } else {
         nextIndex = Infinity;
 //        console.log('|||',buffer.substr(0, 20));
         for(key in parsers) {
 //          console.log("Checking:", key);
-          i = parsers[key](data, this, true);
+          i = parsers[key](this, true);
           if((typeof i === 'number') && i < nextIndex) {
 //            console.log("GOT", key);
             nextIndex = i;
@@ -266,7 +271,7 @@ function sse(type, opts) {
         }
         if(nextIndex < Infinity) {
 //          console.log("FOUND", nextKey);
-          tryAgain = parsers[nextKey](data, this);
+          tryAgain = parsers[nextKey](this);
         } else {
           break;
         }

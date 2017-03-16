@@ -1,6 +1,6 @@
 WARNING: This code is not yet fully working. 
 
-Stream processor that takes GenBank, FASTA or plaintext formats as input and streams out just the sequence data (DNA, RNA or Amino Acids) with all formatting and meta-data removed.
+Stream processor that takes GenBank, FASTA or SBOL formats as input and streams out just the sequence data (DNA, RNA or Amino Acids) with all formatting and meta-data removed.
 
 This is not a strict parser. It will successfully parse things that only have a vague resemblance to their correct formats. This parser is meant to be fast and asynchronous. If you need format validation look elsewhere.
 
@@ -100,7 +100,7 @@ This parser additionally allows lower case versions of the allowed characters.
 
 ## SBOL
 
-To identify SBOL format the parser looks for the pattern '<rdf:RDF' (case insensitive) and then uses a streaming XML parser to find 'sbol:Elements' tags inside of 'sbol:Sequence' tags inside of the 'rdf:RDF' tag. It skips all sequence tags where the encoding does not contain the string 'www.chem.qmul.ac.uk/iubmb/misc/naseq.html' or 'www.chem.qmul.ac.uk/iupac/AminoAcid'. 
+To identify SBOL format the parser looks for the pattern '<?xml' or '<rdf:RDF' (case insensitive) and then uses a streaming XML parser to find 'sbol:Elements' tags inside of 'sbol:Sequence' tags inside of the 'rdf:RDF' tag. It skips all sequence tags where the encoding does not contain the string 'www.chem.qmul.ac.uk/iubmb/misc/naseq.html' or 'www.chem.qmul.ac.uk/iupac/AminoAcid'. 
 
 It extracts all text nodes from within all 'sbol:Elements' tags.
 
@@ -132,13 +132,10 @@ One or more empty lines after a sequence with lines consisting only of allowed c
 # ToDo
 
 * SBOL parser doesn't sanitize/check DNA output
-* If file contains e.g. fasta then sbol then genbank and the parsers are tried in the order fasta->genbank->sbol then the parser might discover the genbank header first and discard all the sbol as junk. To handle this we should check for any of the possible headers and pick the one that appears the earliest.
 * Check if multiple genbank seqs in one file work
-* Implement that seqs also end if the beginning of another format is discovered
 * Implement opts.multi and opts.separator
 * Deal with maxBuffer
 * Implement GenBank AA support
-* Add plaintext support
 * Unit tests
 
 # License and copyright

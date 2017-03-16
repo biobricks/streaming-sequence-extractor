@@ -5,7 +5,7 @@ var see = require('../index.js');
 
 var seqStream = see();
 
-fs.createReadStream('../sample_data/test.multi').pipe(seqStream);
+fs.createReadStream('../sample_data/test.gb').pipe(seqStream);
 
 seqStream.on('data', function(data) {
   console.log(data);
