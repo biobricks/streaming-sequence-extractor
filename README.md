@@ -137,7 +137,7 @@ License: AGPLv3
 
 Copyright 2017 The BioBricks Foundation
 
-[ci-img]: https://travis-ci.org/biobricks/commitdb.svg?branch=master
-[ci-url]: https://travis-ci.org/biobricks/commitdb
-[npm-img]: https://nodei.co/npm/commitdb.png
-[npm-url]: https://nodei.co/npm/commitdb/
+[ci-img]: https://travis-ci.org/biobricks/streaming-sequence-extractor.svg?branch=master
+[ci-url]: https://travis-ci.org/biobricks/streaming-sequence-extractor
+[npm-img]: https://nodei.co/npm/streaming-sequence-extractor.png
+[npm-url]: https://nodei.co/npm/streaming-sequence-extractor/
