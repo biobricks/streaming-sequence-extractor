@@ -1,13 +1,12 @@
 
 var path = require('path');
 var fs = require('fs');
-var brake = require('brake');
 var test = require('tape');
 var see = require('../index.js');
 
 
 // parse genbank stream
-test('GenBank', function(t) {
+test('GenBank (no brake)', function(t) {
 
   t.plan(1); // plan one test
 
@@ -24,7 +23,7 @@ test('GenBank', function(t) {
   
   // read sequence data from file and pipe into seqStream
   // but throttle to 20000 bytes per second
-  fs.createReadStream(path.join('sample_data', 'test.gb')).pipe(brake(20000)).pipe(seqStream);
+  fs.createReadStream(path.join('sample_data', 'test.gb')).pipe(seqStream);
   
   seqStream.on('data', function(data) {
     output += data;

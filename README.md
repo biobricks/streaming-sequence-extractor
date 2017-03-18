@@ -1,7 +1,7 @@
 [![NPM][npm-img]][npm-url]
 [![Build Status][ci-img]][ci-url]
 
-Stream processor that takes GenBank, FASTA or SBOL formats as input and streams out just the sequence data (DNA, RNA or Amino Acid sequences) with all formatting and meta-data removed. 
+Stream processor that takes GenBank, FASTA or SBOL 2.x formats as input and streams out just the sequence data (DNA, RNA or Amino Acid sequences) with all formatting and meta-data removed. 
 
 Optionally you can specify a FASTA header to be appended to each sequence.
 
@@ -99,6 +99,8 @@ To identify SBOL format the parser looks for the pattern '<?xml' or '<rdf:RDF' (
 
 It extracts all text nodes from within all 'sbol:Elements' tags.
 
+This parser has only works with SBOL 2. It is currently not backwards compatible with SBOL 1.
+
 ## FASTA
 
 To idenfity FASTA format the parser looks for the first non-empty line that begins with either `>` or `;` and then assumes that the sequence begins at the first non-empty line after that which doesn't begin with a `;`.  
@@ -130,6 +132,10 @@ However, currently the SBOL parser overconsumes in some cases (see examples/mult
 * Implement checking of SBOL encoding so we can discard SMILE data.
 * Implement opts.maxBuffer (maximum buffer size)
 * More unit tests
+
+# Tests
+
+The tests called `*.nobrake.js` are piping input into streaming-sequence-extractor as fast as possible, which usually means that it is received as a single large chunk, a at the most as a few large chunks. The other tests are using the [brake](https://www.npmjs.com/package/brake) module to throttle the input rate such that failures associated with receiving the stream in small (usually single character) increments can be discovered.
 
 # License and copyright
 

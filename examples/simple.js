@@ -13,7 +13,7 @@ var seqStream = see('auto', {
 
 // read sequence data from file and pipe into seqStream
 // but throttle to 20000 bytes per second
-fs.createReadStream('../sample_data/test.gb').pipe(brake(20000)).pipe(seqStream);
+fs.createReadStream('../sample_data/test.sbol').pipe(brake(20000)).pipe(seqStream);
 
 seqStream.on('data', function(data) {
   process.stdout.write(data);
