@@ -1,6 +1,6 @@
 {
   "name": "streaming-sequence-extractor",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "dependencies": {
     "sax": "1.2.2",
     "through2": "^2.0.3",
@@ -28,9 +28,12 @@
     "email": "npm@juul.io",
     "url": "https://github.com/juul"
   },
-  "scripts": {},
+  "scripts": {
+    "test": "tape tests/*.js"
+  },
   "license": "AGPL-3.0",
   "devDependencies": {
-    "brake": "^1.0.1"
+    "brake": "^1.0.1",
+    "tape": "^4.6.3"
   }
 }

@@ -1,10 +1,11 @@
-WARNING: This module is not production ready. Needs more testing.
+[![NPM][npm-img]][npm-url]
+[![Build Status][ci-img]][ci-url]
 
 Stream processor that takes GenBank, FASTA or SBOL formats as input and streams out just the sequence data (DNA, RNA or Amino Acid sequences) with all formatting and meta-data removed. 
 
 Optionally you can specify a FASTA header to be appended to each sequence.
 
-This module was written to facilitate building of BLAST databases from large amounts of user-contributed sequence files, while using the appended FASTA header to reference the BLAST query results back to the original file.
+This module was written to facilitate the building of BLAST databases from large amounts of user-contributed sequence files, while using the appended FASTA header to reference the BLAST query results back to the original file.
 
 This is not a strict parser. It will successfully parse things that only bear a vague resemblance to their correct formats. This parser is meant to be fast, asynchronous and platform-independent. If you need strict format validation look elsewhere.
 
@@ -66,7 +67,7 @@ If `header` is set then each sequence will be output with a FASTA header in the 
 
 # Output format
 
-The output will consist of all nucleotide or amino acid characters encountered in the sequences, as specified by in the 'Allowed sequence characters' section.
+The output will consist of all nucleotide or amino acid characters encountered in the sequences, as specified by in the 'Allowed sequence characters' section with the optional FASTA header.
 
 # Allowed input sequence characters
 
@@ -94,7 +95,7 @@ This parser additionally allows lower case versions of the allowed characters.
 
 ## SBOL
 
-To identify SBOL format the parser looks for the pattern '<?xml' or '<rdf:RDF' (case insensitive) and then uses a streaming XML parser to find 'sbol:Elements' tags inside of 'sbol:Sequence' tags inside of the 'rdf:RDF' tag. It skips all sequence tags where the encoding does not contain the string 'www.chem.qmul.ac.uk/iubmb/misc/naseq.html' or 'www.chem.qmul.ac.uk/iupac/AminoAcid'. 
+To identify SBOL format the parser looks for the pattern '<?xml' or '<rdf:RDF' (case insensitive) and then uses a streaming XML parser to find 'sbol:Elements' tags inside of 'sbol:Sequence' tags inside of the 'rdf:RDF' tag. It currently does not check the encoding.
 
 It extracts all text nodes from within all 'sbol:Elements' tags.
 
@@ -125,13 +126,18 @@ However, currently the SBOL parser overconsumes in some cases (see examples/mult
 # ToDo
 
 * Support FASTQ format
-* Fix SBOL overconsumption.
-* Implement checking of SBOL encoding
+* Fix SBOL overconsumption so we can support mixed-format streams.
+* Implement checking of SBOL encoding so we can discard SMILE data.
 * Implement opts.maxBuffer (maximum buffer size)
-* Unit tests
+* More unit tests
 
 # License and copyright
 
 License: AGPLv3
 
 Copyright 2017 The BioBricks Foundation
+
+[ci-img]: https://travis-ci.org/biobricks/commitdb.svg?branch=master
+[ci-url]: https://travis-ci.org/biobricks/commitdb
+[npm-img]: https://nodei.co/npm/commitdb.png
+[npm-url]: https://nodei.co/npm/commitdb/

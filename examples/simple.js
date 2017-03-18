@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-var util = require('util');
-var through = require('through2');
 var brake = require('brake');
 var fs = require('fs');
 var see = require('../index.js');
@@ -15,7 +13,7 @@ var seqStream = see('auto', {
 
 // read sequence data from file and pipe into seqStream
 // but throttle to 20000 bytes per second
-fs.createReadStream('../sample_data/test.sbol').pipe(brake(20000)).pipe(seqStream);
+fs.createReadStream('../sample_data/test.gb').pipe(brake(20000)).pipe(seqStream);
 
 seqStream.on('data', function(data) {
   process.stdout.write(data);
@@ -28,3 +26,4 @@ seqStream.on('error', function(err) {
 seqStream.on('end', function(data) {
   console.log("stream ended");
 });
+
