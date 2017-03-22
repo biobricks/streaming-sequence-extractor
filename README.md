@@ -121,9 +121,7 @@ If `auto` is specified as the type (the default) then for GenBank format it will
 
 The parser currently is not able to auto-detect if an SBOL formatted stream contains Amino Acid sequences vs. DNA/RNA sequences.
 
-The input stream is supposed to be able to contain a mix of the supported formats concatenated together. E.g. you should be able to stream a FASTA file followed by an SBOL file and then a GenBank file, as long as each FASTA or FASTQ file ends with a double-newline.
-
-However, currently the SBOL parser overconsumes in some cases (see examples/multi_fail.js) which can cause it to eat up the beginning of the next format. This is an issue with the sax npm module not stopping when it reaches the closing tag of the root node (which is fair if it was designed for parsing a single xml file per initialization).
+The input stream is supposed to be able to contain a mix of the supported formats concatenated together. E.g. you should be able to stream a FASTA file followed by an SBOL file and then a GenBank file, as long as each FASTA or FASTQ file ends with a double-newline. However, currently the SBOL parser overconsumes in some cases (see examples/multi_fail.js) which can cause it to eat up the beginning of the next format. This is an issue with the sax npm module not stopping when it reaches the closing tag of the root node (which is fair if it was designed for parsing a single xml file per initialization).
 
 # ToDo
 
