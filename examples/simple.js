@@ -2,9 +2,9 @@
 
 var brake = require('brake');
 var fs = require('fs');
-var see = require('../index.js');
+var sse = require('../index.js');
 
-var seqStream = see('auto', {
+var seqStream = sse('auto', {
   convertToExpected: true,
   header: function(count) {
     return "sample header " + count;

@@ -30,7 +30,7 @@ seqStream.on('end', function(data) {
 
 # API
 
-## see([type], [options])
+## sse([type], [options])
 
 type can be:
 

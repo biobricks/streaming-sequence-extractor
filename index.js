@@ -265,7 +265,6 @@ function sse(type, opts) {
         m = buffer.match(sbolStart);
         if(!m) return;
         if(check) return m.index;
-
         parser = parsers.sbol;
         sbolBufferOffset = 0;
 

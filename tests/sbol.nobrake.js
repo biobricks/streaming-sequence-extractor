@@ -2,7 +2,7 @@
 var path = require('path');
 var fs = require('fs');
 var test = require('tape');
-var see = require('../index.js');
+var sse = require('../index.js');
 
 
 // parse genbank stream
@@ -12,7 +12,7 @@ test('SBOL (no brake)', function(t) {
 
   var output = '';
 
-  var seqStream = see('auto', {
+  var seqStream = sse('auto', {
     convertToExpected: true,
     header: function(count) {
       return "sample header " + count;
